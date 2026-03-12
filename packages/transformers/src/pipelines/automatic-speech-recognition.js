@@ -2,6 +2,7 @@ import { Pipeline, prepareAudios } from './_base.js';
 
 import { Tensor } from '../utils/tensor.js';
 import { max, round } from '../utils/maths.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * @typedef {import('./_base.js').TextAudioPipelineConstructorArgs} TextAudioPipelineConstructorArgs
@@ -29,7 +30,7 @@ import { max, round } from '../utils/maths.js';
  * @property {string} [language] The source language. Default is `null`, meaning it should be auto-detected. Use this to potentially improve performance if the source language is known.
  * @property {string} [task] The task to perform. Default is `null`, meaning it should be auto-detected.
  * @property {number} [num_frames] The number of frames in the input audio.
- * @typedef {import('../generation/configuration_utils.js').GenerationConfig & AutomaticSpeechRecognitionSpecificParams} AutomaticSpeechRecognitionConfig
+ * @typedef {import('../generation/parameters.js').GenerationFunctionParameters & AutomaticSpeechRecognitionSpecificParams} AutomaticSpeechRecognitionConfig
  *
  * @callback AutomaticSpeechRecognitionPipelineCallbackSingle Transcribe the audio sequence given as inputs to text.
  * @param {AudioInput} audio The input audio file(s) to be transcribed. The input is either:
@@ -164,10 +165,10 @@ export class AutomaticSpeechRecognitionPipeline
         // TODO use kwargs
 
         if (kwargs.language) {
-            console.warn('`language` parameter is not yet supported for `wav2vec2` models, defaulting to "English".');
+            logger.warn('`language` parameter is not yet supported for `wav2vec2` models, defaulting to "English".');
         }
         if (kwargs.task) {
-            console.warn('`task` parameter is not yet supported for `wav2vec2` models, defaulting to "transcribe".');
+            logger.warn('`task` parameter is not yet supported for `wav2vec2` models, defaulting to "transcribe".');
         }
 
         const single = !Array.isArray(audio);

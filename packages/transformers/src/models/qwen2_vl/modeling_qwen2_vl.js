@@ -17,6 +17,11 @@ export class Qwen2VLPreTrainedModel extends PreTrainedModel {
     ];
 }
 export class Qwen2VLForConditionalGeneration extends Qwen2VLPreTrainedModel {
+    // NOTE: This is used as the base class for all Qwen VL models and their CausalLM variants.
+    // CausalLM variants (e.g., Qwen2VLForCausalLM) extend this class but load only
+    // embed_tokens + decoder_model_merged (no vision_encoder) via MultimodalLanguageModelOnly type.
+    image_grid_thw_name = 'grid_thw';
+
     /**
      * Calculate the 3D rope index based on image and video's temporal, height and width in LLM.
      *
@@ -211,8 +216,12 @@ export class Qwen2VLForConditionalGeneration extends Qwen2VLPreTrainedModel {
     }
 
     async encode_image({ pixel_values, image_grid_thw }) {
-        const features = (await sessionRun(this.sessions['vision_encoder'], { pixel_values, grid_thw: image_grid_thw }))
-            .image_features;
+        const features = (
+            await sessionRun(this.sessions['vision_encoder'], {
+                pixel_values,
+                [this.image_grid_thw_name]: image_grid_thw,
+            })
+        ).image_features;
         return features;
     }
 
@@ -239,12 +248,42 @@ export class Qwen2VLForConditionalGeneration extends Qwen2VLPreTrainedModel {
                 model_inputs.pixel_values = null;
                 // model_inputs.pixel_values_videos = null;
 
-                const delta = BigInt(Object.values(model_inputs.past_key_values)[0].dims.at(-2));
-                const rope_deltas_list = model_inputs.rope_deltas.map((x) => delta + x);
-                model_inputs.position_ids = stack([rope_deltas_list, rope_deltas_list, rope_deltas_list], 0);
+                const past_length = model_inputs.past_key_values.get_seq_length();
+
+                if (past_length < model_inputs.input_ids.dims[1]) {
+                    // Externally provided `past_key_values` with full input_ids:
+                    // Compute full position_ids, then slice to only the new (unprocessed) tokens.
+                    const [full_position_ids, rope_deltas] = this.get_rope_index(
+                        model_inputs.input_ids,
+                        model_inputs.image_grid_thw,
+                        model_inputs.video_grid_thw,
+                        model_inputs.attention_mask,
+                    );
+                    model_inputs.rope_deltas = rope_deltas;
+                    model_inputs.position_ids = full_position_ids.slice(null, null, [past_length, null]);
+                    model_inputs.input_ids = model_inputs.input_ids.slice(null, [past_length, null]);
+                } else {
+                    // Auto-regressive case: single new token.
+                    // `rope_deltas` may be absent when generation starts from externally provided `past_key_values`.
+                    // In that case, recompute from current inputs instead of relying on persisted model state.
+                    if (!model_inputs.rope_deltas) {
+                        [, model_inputs.rope_deltas] = this.get_rope_index(
+                            model_inputs.input_ids,
+                            model_inputs.image_grid_thw,
+                            model_inputs.video_grid_thw,
+                            model_inputs.attention_mask,
+                        );
+                    }
+
+                    const delta = BigInt(past_length);
+                    const rope_deltas_list = model_inputs.rope_deltas.map((x) => delta + x);
+                    model_inputs.position_ids = stack([rope_deltas_list, rope_deltas_list, rope_deltas_list], 0);
+                }
             }
         }
 
         return model_inputs;
     }
 }
+
+export class Qwen2VLForCausalLM extends Qwen2VLForConditionalGeneration {}

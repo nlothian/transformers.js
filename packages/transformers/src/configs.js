@@ -68,12 +68,18 @@ function getNormalizedConfig(config) {
         case 'florence2':
         case 'llava_onevision':
         case 'idefics3':
+        case 'granite_speech':
         case 'ultravox':
         case 'voxtral':
+        case 'voxtral_realtime':
         case 'smolvlm':
         case 'gemma3n':
+        case 'lfm2_vl':
         case 'chatterbox':
         case 'mistral3':
+        case 'qwen2_5_vl':
+        case 'qwen3_vl':
+        case 'qwen3_vl_moe':
             // @ts-expect-error TS2339
             init_normalized_config = getNormalizedConfig(config.text_config);
             break;
@@ -115,6 +121,7 @@ function getNormalizedConfig(config) {
         case 'nanochat':
         case 'apertus':
         case 'arcee':
+        case 'afmoe':
         case 'lfm2':
         case 'lfm2_moe':
         case 'smollm3':
@@ -125,10 +132,19 @@ function getNormalizedConfig(config) {
         case 'granite':
         case 'granitemoehybrid':
         case 'cohere':
+        case 'cohere2':
         case 'mistral':
+        case 'voxtral_realtime_text':
+        case 'voxtral_realtime_encoder':
         case 'starcoder2':
         case 'qwen2':
+        case 'qwen2_moe':
         case 'qwen2_vl':
+        case 'qwen2_vl_text':
+        case 'qwen2_5_vl_text':
+        case 'qwen3_moe':
+        case 'qwen3_vl_text':
+        case 'qwen3_vl_moe_text':
         case 'phi':
         case 'phi3':
         case 'phi3_v':
@@ -283,15 +299,17 @@ function getNormalizedConfig(config) {
  * @returns {Record<string, number[]>}
  */
 export function getCacheShapes(config, options) {
+    if (!(config instanceof PretrainedConfig)) {
+        config = new PretrainedConfig(config);
+    }
     if (['lfm2', 'lfm2_moe'].includes(config.model_type)) {
         const pkv_prefix = options?.prefix ?? 'past_key_values';
         const conv_prefix = pkv_prefix === 'present' ? 'present' : 'past';
 
-        // Custom caching mechanism for LFM2
         /** @type {Record<string, number[]>} */
         const cache_values = {};
-        // @ts-expect-error TS2339
-        const { layer_types, num_attention_heads, num_key_value_heads, hidden_size, conv_L_cache } = config;
+        const { layer_types, num_attention_heads, num_key_value_heads, hidden_size, conv_L_cache } =
+            /** @type {any} */ (config);
         const head_dim = hidden_size / num_attention_heads;
         const batch_size = options?.batch_size ?? 1;
         for (let i = 0; i < layer_types.length; ++i) {
@@ -343,7 +361,65 @@ export function getCacheShapes(config, options) {
             }
         }
         return cache_values;
+    } else if (['qwen3_next', 'qwen3_5_text', 'qwen3_5_moe_text', 'olmo_hybrid'].includes(config.model_type)) {
+        const pkv_prefix = options?.prefix ?? 'past_key_values';
+        const conv_prefix = pkv_prefix === 'present' ? 'present' : 'past';
+
+        /** @type {Record<string, number[]>} */
+        const cache_values = {};
+        const {
+            head_dim,
+            layer_types,
+            num_attention_heads,
+            num_key_value_heads,
+            hidden_size,
+            linear_num_value_heads,
+            linear_num_key_heads,
+            linear_key_head_dim,
+            linear_value_head_dim,
+            linear_conv_kernel_dim,
+        } = /** @type {any} */ (config);
+
+        const key_dim = linear_key_head_dim * linear_num_key_heads;
+        const value_dim = linear_value_head_dim * linear_num_value_heads;
+
+        const final_head_dim = head_dim ?? hidden_size / num_attention_heads;
+        const batch_size = options?.batch_size ?? 1;
+        for (let i = 0; i < layer_types.length; ++i) {
+            if (layer_types[i] === 'full_attention') {
+                for (const kv of ['key', 'value']) {
+                    cache_values[`${pkv_prefix}.${i}.${kv}`] = [batch_size, num_key_value_heads, 0, final_head_dim];
+                }
+            } else if (layer_types[i] === 'linear_attention') {
+                if (config.model_type === 'olmo_hybrid') {
+                    cache_values[`${conv_prefix}_conv.${i}.key`] = [batch_size, key_dim, linear_conv_kernel_dim];
+                    cache_values[`${conv_prefix}_conv.${i}.value`] = [batch_size, value_dim, linear_conv_kernel_dim];
+                    cache_values[`${conv_prefix}_conv.${i}.query`] = [batch_size, key_dim, linear_conv_kernel_dim];
+                } else {
+                    const conv_dim = key_dim * 2 + value_dim;
+                    cache_values[`${conv_prefix}_conv.${i}`] = [batch_size, conv_dim, linear_conv_kernel_dim];
+                }
+                cache_values[`${conv_prefix}_recurrent.${i}`] = [
+                    batch_size,
+                    linear_num_value_heads,
+                    linear_key_head_dim,
+                    linear_value_head_dim,
+                ];
+            } else {
+                throw new Error(`Unsupported layer type: ${layer_types[i]}`);
+            }
+        }
+        return cache_values;
+    } else if (['lfm2_vl', 'qwen3_5', 'qwen3_5_moe', 'voxtral_realtime'].includes(config.model_type)) {
+        let subConfig;
+        if (config.model_type === 'voxtral_realtime' && options?.session_name === 'audio_encoder') {
+            subConfig = /** @type {any} */ (config).audio_config;
+        } else {
+            subConfig = /** @type {any} */ (config).text_config;
+        }
+        return getCacheShapes(subConfig, options);
     }
+
     return getKeyValueShapes(config, options);
 }
 
