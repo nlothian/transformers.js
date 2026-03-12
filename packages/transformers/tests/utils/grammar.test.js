@@ -69,6 +69,11 @@ describe("TokenizerGrammarBridge", () => {
     expect(bridge.matchesCharacterTerminal(terminal, "x")).toBe(true);
   });
 
+  it("throws for multi-code-point character-level terminals", () => {
+    const bridge = new TokenizerGrammarBridge(new MockTokenizer({ A: 0 }, { 0: "a" }));
+    expect(() => bridge.parseTerminal("ab")).toThrow(/must use exactly one code point/);
+  });
+
   it("preserves byte-level artifacts and leading markers in decoded token matching", () => {
     const bridge = new TokenizerGrammarBridge(new MockTokenizer({ G: 4 }, { 4: "ĠHello" }));
     expect(bridge.parseTerminal("<ĠHello>").tokenId).toBe(4);
@@ -94,5 +99,10 @@ describe("TokenizerGrammarBridge", () => {
     expect(() => {
       new TokenizerGrammarBridge(new MockTokenizer({ A: 0, B: 0 }, { 0: "a" }));
     }).toThrow(/multiple vocabulary entries map to token id/);
+  });
+
+  it("throws for tokenizer objects missing bridge methods", () => {
+    expect(() => new TokenizerGrammarBridge({ decode_single: () => "a" })).toThrow(/get_vocab\(\)/);
+    expect(() => new TokenizerGrammarBridge({ get_vocab: () => ({ A: 0 }) })).toThrow(/decode_single\(\)/);
   });
 });

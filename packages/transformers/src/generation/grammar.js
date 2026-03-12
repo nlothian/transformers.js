@@ -51,6 +51,13 @@ export class TokenizerGrammarBridge {
      * }} tokenizer
      */
     constructor(tokenizer) {
+        if (typeof tokenizer?.get_vocab !== 'function') {
+            throw new Error('TokenizerGrammarBridge requires a tokenizer with a get_vocab() method.');
+        }
+        if (typeof tokenizer?.decode_single !== 'function') {
+            throw new Error('TokenizerGrammarBridge requires a tokenizer with a decode_single() method.');
+        }
+
         this.tokenizer = tokenizer;
         this.#buildTokenMaps();
     }
@@ -104,6 +111,14 @@ export class TokenizerGrammarBridge {
     parseTerminal(terminal) {
         const tokenMatch = terminal.match(TOKEN_TERMINAL_RE);
         if (!tokenMatch) {
+            const codePoints = Array.from(terminal);
+            if (codePoints.length !== 1) {
+                throw new Error(
+                    `Character-level terminal "${terminal}" contains ${codePoints.length} Unicode code points. ` +
+                        'Character-level transitions must use exactly one code point.',
+                );
+            }
+
             return {
                 kind: 'character',
                 text: terminal,
