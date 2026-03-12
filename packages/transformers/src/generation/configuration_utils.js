@@ -290,6 +290,14 @@ export class GenerationConfig {
      */
     guidance_scale = null;
 
+    /**
+     * Grammar configuration for constrained decoding.
+     * When provided, generation is constrained to tokens accepted by a compiled grammar runtime.
+     * @type {Object}
+     * @default null
+     */
+    grammar = null;
+
     // Parameters that define the output variables of `generate`
     /**
      * The number of independently computed returned sequences for each element in the batch.
