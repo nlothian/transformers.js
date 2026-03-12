@@ -27,6 +27,7 @@ import {
     NoBadWordsLogitsProcessor,
     MinLengthLogitsProcessor,
     MinNewTokensLengthLogitsProcessor,
+    GrammarConstrainedLogitsProcessor,
     TemperatureLogitsWarper,
     ClassifierFreeGuidanceLogitsProcessor,
 } from '../generation/logits_process.js';
@@ -660,6 +661,21 @@ export class PreTrainedModel extends Callable {
 
             processors.push(
                 new SuppressTokensAtBeginLogitsProcessor(generation_config.begin_suppress_tokens, begin_index),
+            );
+        }
+
+        // Grammar constraints should run after generic token suppression/forcing processors above,
+        // but before sampling warpers so sampling only sees grammar-valid tokens.
+        if (generation_config.grammar) {
+            const grammar_config = generation_config.grammar;
+            processors.push(
+                new GrammarConstrainedLogitsProcessor({
+                    tokenizer_metadata: grammar_config.tokenizer_metadata,
+                    vocab_size: grammar_config.vocab_size,
+                    eos_token_id: generation_config.eos_token_id,
+                    grammar_strict: grammar_config.grammar_strict ?? true,
+                    grammar_runtime: grammar_config.runtime ?? grammar_config,
+                }),
             );
         }
 

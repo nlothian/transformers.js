@@ -42,6 +42,156 @@ export class LogitsWarper extends Callable {
 }
 
 /**
+ * A logits processor that constrains next-token selection to tokens accepted by a compiled grammar runtime.
+ */
+export class GrammarConstrainedLogitsProcessor extends LogitsProcessor {
+    /**
+     * Create a `GrammarConstrainedLogitsProcessor`.
+     *
+     * @param {Object} options
+     * @param {Object} [options.tokenizer_metadata={}] Tokenizer/vocabulary metadata passed to grammar callbacks.
+     * @param {number|null} [options.vocab_size=null] Vocabulary size. If unset, inferred from logits width.
+     * @param {number|number[]|null} [options.eos_token_id=null] End-of-sequence token id(s).
+     * @param {boolean} [options.grammar_strict=true] Whether to throw when grammar cannot continue.
+     * @param {Object} options.grammar_runtime Compiled grammar runtime context.
+     */
+    constructor({
+        tokenizer_metadata = {},
+        vocab_size = null,
+        eos_token_id = null,
+        grammar_strict = true,
+        grammar_runtime,
+    }) {
+        super();
+
+        if (!grammar_runtime || typeof grammar_runtime.allowedTokenIds !== 'function') {
+            throw new Error('`grammar_runtime.allowedTokenIds(state, context)` must be provided for grammar decoding.');
+        }
+
+        this.tokenizer_metadata = tokenizer_metadata;
+        this.vocab_size = vocab_size;
+        this.eos_token_id = eos_token_id;
+        this.grammar_strict = grammar_strict;
+        this.grammar_runtime = grammar_runtime;
+
+        /** @type {{ state: any, processedLength: number }[]} */
+        this.row_states = [];
+    }
+
+    /**
+     * @private
+     * @returns {number[]}
+     */
+    _getEOSIds() {
+        if (this.eos_token_id === null) {
+            return [];
+        }
+        return Array.isArray(this.eos_token_id) ? this.eos_token_id : [this.eos_token_id];
+    }
+
+    /**
+     * @private
+     * @returns {any}
+     */
+    _createState() {
+        if (typeof this.grammar_runtime.createState === 'function') {
+            return this.grammar_runtime.createState();
+        }
+        if (typeof this.grammar_runtime.initialState === 'function') {
+            return this.grammar_runtime.initialState();
+        }
+        return this.grammar_runtime.initialState ?? null;
+    }
+
+    /**
+     * @private
+     * @param {number} rowIndex
+     * @param {bigint[]} rowInputIds
+     */
+    _syncState(rowIndex, rowInputIds) {
+        if (!this.row_states[rowIndex] || rowInputIds.length < this.row_states[rowIndex].processedLength) {
+            this.row_states[rowIndex] = {
+                state: this._createState(),
+                processedLength: 0,
+            };
+        }
+
+        const rowState = this.row_states[rowIndex];
+        if (typeof this.grammar_runtime.consumeToken === 'function') {
+            for (let j = rowState.processedLength; j < rowInputIds.length; ++j) {
+                rowState.state = this.grammar_runtime.consumeToken(rowState.state, Number(rowInputIds[j]), {
+                    row_index: rowIndex,
+                    tokenizer_metadata: this.tokenizer_metadata,
+                });
+            }
+        }
+        rowState.processedLength = rowInputIds.length;
+        return rowState.state;
+    }
+
+    /**
+     * Apply grammar constraints to input logits.
+     * @param {bigint[][]} input_ids The input ids.
+     * @param {Tensor} logits The logits.
+     * @returns {Tensor} The processed logits.
+     */
+    _call(input_ids, logits) {
+        const eos_token_ids = this._getEOSIds();
+        const vocab_size = this.vocab_size ?? logits.dims.at(-1);
+
+        for (let i = 0; i < input_ids.length; ++i) {
+            const batch_logits_data = /** @type {Float32Array} */ (logits[i].data);
+            const state = this._syncState(i, input_ids[i]);
+
+            const allowed = this.grammar_runtime.allowedTokenIds(state, {
+                row_index: i,
+                input_ids: input_ids[i],
+                tokenizer_metadata: this.tokenizer_metadata,
+                vocab_size,
+            });
+            const allowedSet = new Set(allowed ?? []);
+
+            if (allowedSet.size === 0) {
+                const can_end = typeof this.grammar_runtime.canEnd === 'function'
+                    ? this.grammar_runtime.canEnd(state, {
+                        row_index: i,
+                        input_ids: input_ids[i],
+                        tokenizer_metadata: this.tokenizer_metadata,
+                    })
+                    : false;
+
+                if (can_end && eos_token_ids.length > 0) {
+                    for (const eos of eos_token_ids) {
+                        allowedSet.add(eos);
+                    }
+                } else {
+                    const errorMessage = `No valid grammar continuation found for batch row ${i}.`;
+                    if (this.grammar_strict) {
+                        throw new Error(errorMessage);
+                    }
+
+                    if (eos_token_ids.length === 0) {
+                        console.warn(`${errorMessage} No eos token configured, leaving logits unchanged.`);
+                        continue;
+                    }
+                    for (const eos of eos_token_ids) {
+                        allowedSet.add(eos);
+                    }
+                }
+            }
+
+            for (let token_id = 0; token_id < batch_logits_data.length; ++token_id) {
+                if (!allowedSet.has(token_id)) {
+                    batch_logits_data[token_id] = -Infinity;
+                }
+            }
+        }
+
+        return logits;
+    }
+}
+
+/**
  * A class representing a list of logits processors. A logits processor is a function that modifies the logits
  * output of a language model. This class provides methods for adding new processors and applying all processors to a
  * batch of logits.

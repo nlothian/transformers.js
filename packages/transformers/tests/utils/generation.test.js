@@ -17,6 +17,7 @@ import {
   TextStreamer,
   RawImage,
 } from "../../src/transformers.js";
+import { GenerationConfig } from "../../src/generation/configuration_utils.js";
 
 import { init, MAX_TEST_EXECUTION_TIME, MAX_MODEL_LOAD_TIME, MAX_MODEL_DISPOSE_TIME, DEFAULT_MODEL_OPTIONS } from "../init.js";
 
@@ -33,6 +34,18 @@ const generate = async (model, tokenizer, text, options) => {
 };
 
 describe("Generation parameters", () => {
+  it("keeps grammar when passed in GenerationConfig constructor", () => {
+    const grammar = {
+      runtime: {
+        allowedTokenIds: () => [0],
+      },
+      grammar_strict: false,
+    };
+
+    const config = new GenerationConfig({ grammar });
+    expect(config.grammar).toBe(grammar);
+  });
+
   // List all models which will be tested
   const models = [
     "hf-internal-testing/tiny-random-T5ForConditionalGeneration", // encoder-decoder
