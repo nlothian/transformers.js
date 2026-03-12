@@ -69,6 +69,20 @@ describe('GBNF runtime state machine', () => {
         expect(machine.isEOSValid()).toBe(true);
     });
 
+
+    it('inlines rule bodies at each reference site', () => {
+        const machine = GBNFStateMachine.fromGrammar(`root ::= item item
+item ::= "a"`);
+        expect(machine.advanceTokenText('a')).toBe(true);
+        expect(machine.isEOSValid()).toBe(false);
+        expect(machine.advanceTokenText('a')).toBe(true);
+        expect(machine.isEOSValid()).toBe(true);
+    });
+
+    it('throws on recursive references with actionable error', () => {
+        expect(() => compileGBNF('root ::= root "a" | "a"')).toThrow(/Recursive rule reference detected/);
+    });
+
     it('throws on unknown rule references at compile time', () => {
         expect(() => compileGBNF('root ::= missing')).toThrow(/Unknown rule reference/);
     });

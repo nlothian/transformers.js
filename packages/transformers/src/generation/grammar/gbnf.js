@@ -548,7 +548,7 @@ export function compileGBNF(grammar) {
         }
     };
 
-    const emitBetween = (node, start, end) => {
+    const emitBetween = (node, start, end, ruleStack = []) => {
         switch (node.type) {
             case 'empty':
                 addEpsilon(start, end);
@@ -573,17 +573,23 @@ export function compileGBNF(grammar) {
                     negated: node.negated,
                 });
                 return;
-            case 'ref':
+            case 'ref': {
                 ensureRule(node.name);
-                addEpsilon(start, startByRule.get(node.name));
-                addEpsilon(endByRule.get(node.name), end);
+                if (ruleStack.includes(node.name)) {
+                    const cycle = [...ruleStack, node.name].join(' -> ');
+                    throw new Error(
+                        `Recursive rule reference detected: ${cycle}. Recursive grammars are not currently supported by the NFA compiler.`
+                    );
+                }
+                emitBetween(parsed.rules.get(node.name), start, end, [...ruleStack, node.name]);
                 return;
+            }
             case 'alt':
                 for (const alt of node.alternatives) {
                     const branchStart = newState();
                     const branchEnd = newState();
                     addEpsilon(start, branchStart);
-                    emitBetween(alt, branchStart, branchEnd);
+                    emitBetween(alt, branchStart, branchEnd, ruleStack);
                     addEpsilon(branchEnd, end);
                 }
                 return;
@@ -591,7 +597,7 @@ export function compileGBNF(grammar) {
                 let current = start;
                 for (let i = 0; i < node.elements.length; ++i) {
                     const next = i === node.elements.length - 1 ? end : newState();
-                    emitBetween(node.elements[i], current, next);
+                    emitBetween(node.elements[i], current, next, ruleStack);
                     current = next;
                 }
                 return;
@@ -605,7 +611,7 @@ export function compileGBNF(grammar) {
                         let current = branchStart;
                         for (let i = 0; i < repeats; ++i) {
                             const next = i === repeats - 1 ? branchEnd : newState();
-                            emitBetween(node.item, current, next);
+                            emitBetween(node.item, current, next, ruleStack);
                             current = next;
                         }
                         if (repeats === 0) {
@@ -619,7 +625,7 @@ export function compileGBNF(grammar) {
                 let current = start;
                 for (let i = 0; i < node.min; ++i) {
                     const next = newState();
-                    emitBetween(node.item, current, next);
+                    emitBetween(node.item, current, next, ruleStack);
                     current = next;
                 }
 
@@ -629,7 +635,7 @@ export function compileGBNF(grammar) {
                 const bodyStart = newState();
                 const bodyEnd = newState();
                 addEpsilon(loopStart, bodyStart);
-                emitBetween(node.item, bodyStart, bodyEnd);
+                emitBetween(node.item, bodyStart, bodyEnd, ruleStack);
                 addEpsilon(bodyEnd, loopStart);
                 return;
             }
@@ -639,7 +645,7 @@ export function compileGBNF(grammar) {
     };
 
     for (const [ruleName, expr] of parsed.rules) {
-        emitBetween(expr, startByRule.get(ruleName), endByRule.get(ruleName));
+        emitBetween(expr, startByRule.get(ruleName), endByRule.get(ruleName), [ruleName]);
     }
 
     for (const endState of endByRule.values()) {
