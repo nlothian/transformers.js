@@ -730,7 +730,7 @@ export class GBNFStateMachine {
             }
         }
 
-        if (typeof token.text === 'string') {
+        if (typeof token.text === 'string' && token.text.length > 0) {
             let charStates = closure;
             for (const ch of token.text) {
                 const step = new Set();
@@ -752,6 +752,7 @@ export class GBNFStateMachine {
                     nextStates.add(s);
                 }
             }
+        }
         }
 
         return this._epsilonClosure(nextStates);
