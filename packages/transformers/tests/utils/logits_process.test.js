@@ -2,7 +2,11 @@ import {
   // Pipelines
   pipeline,
   TextGenerationPipeline,
+
+  // Logits processors
+  GrammarConstrainedLogitsProcessor,
 } from "../../src/transformers.js";
+import { Tensor } from "../../src/utils/tensor.js";
 
 import { init } from "../init.js";
 init();
@@ -16,6 +20,77 @@ const DEFAULT_MODEL_OPTIONS = {
 };
 
 describe("Logits Processors", () => {
+  describe("GrammarConstrainedLogitsProcessor", () => {
+    it("constrains each batch row with independent grammar states", () => {
+      const processor = new GrammarConstrainedLogitsProcessor({
+        eos_token_id: 4,
+        grammar_runtime: {
+          createState: () => ({ seen: [] }),
+          consumeToken: (state, token) => {
+            state.seen.push(token);
+            return state;
+          },
+          allowedTokenIds: (state) => {
+            const last = state.seen.at(-1);
+            if (last === 1) return [2];
+            if (last === 3) return [0, 3];
+            return [1, 3];
+          },
+        },
+      });
+
+      const logits = new Tensor(
+        "float32",
+        new Float32Array([
+          // row 0
+          0, 1, 2, 3, 4,
+          // row 1
+          5, 6, 7, 8, 9,
+        ]),
+        [2, 5],
+      );
+
+      const output = processor(
+        [
+          [1n],
+          [3n],
+        ],
+        logits,
+      );
+
+      expect(Array.from(output[0].data)).toEqual([-Infinity, -Infinity, 2, -Infinity, -Infinity]);
+      expect(Array.from(output[1].data)).toEqual([5, -Infinity, -Infinity, 8, -Infinity]);
+    });
+
+    it("falls back to EOS when no continuation is possible and grammar can end", () => {
+      const processor = new GrammarConstrainedLogitsProcessor({
+        eos_token_id: 3,
+        grammar_runtime: {
+          allowedTokenIds: () => [],
+          canEnd: () => true,
+        },
+      });
+
+      const logits = new Tensor("float32", new Float32Array([0, 1, 2, 3, 4]), [1, 5]);
+      const output = processor([[42n]], logits);
+      expect(Array.from(output.data)).toEqual([-Infinity, -Infinity, -Infinity, 3, -Infinity]);
+    });
+
+    it("throws in strict mode when no continuation exists and grammar cannot end", () => {
+      const processor = new GrammarConstrainedLogitsProcessor({
+        eos_token_id: 2,
+        grammar_strict: true,
+        grammar_runtime: {
+          allowedTokenIds: () => [],
+          canEnd: () => false,
+        },
+      });
+
+      const logits = new Tensor("float32", new Float32Array([0, 1, 2, 3]), [1, 4]);
+      expect(() => processor([[1n]], logits)).toThrow("No valid grammar continuation found for batch row 0");
+    });
+  });
+
   describe("text-generation", () => {
     const model_id = "hf-internal-testing/tiny-random-LlamaForCausalLM";
 
