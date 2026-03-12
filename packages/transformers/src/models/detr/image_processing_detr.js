@@ -8,7 +8,7 @@ import {
 import { full } from '../../utils/tensor.js';
 
 /**
- * @typedef {Object} DetrFeatureExtractorResultProps
+ * @typedef {object} DetrFeatureExtractorResultProps
  * @property {import('../../utils/tensor.js').Tensor} pixel_mask
  * @typedef {import('../../image_processors_utils.js').ImageProcessorResult & DetrFeatureExtractorResultProps} DetrFeatureExtractorResult
  */

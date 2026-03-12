@@ -5,7 +5,6 @@ import { RawImage } from './utils/image.js';
 import { calculateReflectOffset } from './utils/core.js';
 import { getModelJSON } from './utils/hub.js';
 import { IMAGE_PROCESSOR_NAME } from './utils/constants.js';
-import { logger } from './utils/logger.js';
 
 /**
  * Named tuple to indicate the order we are using is (height x width),
@@ -14,7 +13,7 @@ import { logger } from './utils/logger.js';
  */
 
 /**
- * @typedef {Object} ImageProcessorResult
+ * @typedef {object} ImageProcessorResult
  * @property {Tensor} pixel_values The pixel values of the batched preprocessed images.
  * @property {HeightWidth[]} original_sizes Array of two-dimensional tuples like [[480, 640]].
  * @property {HeightWidth[]} reshaped_input_sizes Array of two-dimensional tuples like [[1000, 1330]].
@@ -407,7 +406,7 @@ function compute_segments(
  * @returns {[number, number]} The new height and width of the image.
  * @throws {Error} If the height or width is smaller than the factor.
  */
-export function smart_resize(height, width, factor = 28, min_pixels = 56 * 56, max_pixels = 14 * 14 * 4 * 1280) {
+function smart_resize(height, width, factor = 28, min_pixels = 56 * 56, max_pixels = 14 * 14 * 4 * 1280) {
     if (height < factor || width < factor) {
         throw new Error(`height:${height} or width:${width} must be larger than factor:${factor}`);
     } else if (Math.max(height, width) / Math.min(height, width) > 200) {
@@ -451,7 +450,7 @@ export function post_process_panoptic_segmentation(
     target_sizes = null,
 ) {
     if (label_ids_to_fuse === null) {
-        logger.warn('`label_ids_to_fuse` unset. No instance will be fused.');
+        console.warn('`label_ids_to_fuse` unset. No instance will be fused.');
         label_ids_to_fuse = new Set();
     }
 
@@ -865,6 +864,11 @@ export class ImageProcessor extends Callable {
             return [newWidth, newHeight];
         } else if (this.size_divisibility !== undefined) {
             return enforce_size_divisibility([srcWidth, srcHeight], this.size_divisibility);
+        } else if (this.min_pixels !== undefined && this.max_pixels !== undefined) {
+            // Custom resize logic for Qwen2-VL models
+            // @ts-expect-error TS2339
+            const factor = this.config.patch_size * this.config.merge_size;
+            return smart_resize(srcHeight, srcWidth, factor, this.min_pixels, this.max_pixels);
         } else {
             throw new Error(
                 `Could not resize image due to unsupported \`this.size\` option in config: ${JSON.stringify(size)}`,
@@ -886,7 +890,7 @@ export class ImageProcessor extends Callable {
     }
 
     /**
-     * @typedef {Object} PreprocessedImage
+     * @typedef {object} PreprocessedImage
      * @property {HeightWidth} original_size The original size of the image.
      * @property {HeightWidth} reshaped_input_size The reshaped input size of the image.
      * @property {Tensor} pixel_values The pixel values of the preprocessed image.

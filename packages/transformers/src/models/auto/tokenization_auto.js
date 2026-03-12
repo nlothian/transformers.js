@@ -1,6 +1,5 @@
 import { PreTrainedTokenizer, loadTokenizer } from '../../tokenization_utils.js';
 import * as AllTokenizers from '../tokenizers.js';
-import { logger } from '../../utils/logger.js';
 
 /**
  * Helper class which is used to instantiate pretrained tokenizers with the `from_pretrained` function.
@@ -55,7 +54,7 @@ export class AutoTokenizer {
 
         let cls = AllTokenizers[tokenizerName];
         if (!cls) {
-            logger.warn(`Unknown tokenizer class "${tokenizerName}", attempting to construct from base class.`);
+            console.warn(`Unknown tokenizer class "${tokenizerName}", attempting to construct from base class.`);
             cls = PreTrainedTokenizer;
         }
         return new cls(tokenizerJSON, tokenizerConfig);

@@ -15,8 +15,6 @@ import { TensorOpRegistry } from '../ops/registry.js';
 
 import { DataTypeMap } from './dtypes.js';
 
-import { random } from './random.js';
-
 /**
  * @typedef {keyof typeof DataTypeMap} DataType
  * @typedef {import('./maths.js').AnyTypedArray | any[]} DataArray
@@ -506,27 +504,11 @@ export class Tensor {
         }
 
         const this_data = this.data;
-        const is_bigint = this_data instanceof BigInt64Array || this_data instanceof BigUint64Array;
-
-        if (is_bigint && p !== 1) {
-            throw Error(`Expected a floating point tensor as input. Got ${this.type}`);
-        }
-
-        let fn, zero;
-        if (is_bigint) {
-            fn = (/** @type {bigint} */ a, /** @type {bigint} */ b) => a + b;
-            zero = 0n;
-        } else {
-            fn = (/** @type {number} */ a, /** @type {number} */ b) => a + b ** p;
-            zero = 0;
-        }
+        const fn = (/** @type {number} */ a, /** @type {number} */ b) => a + b ** p;
 
         if (dim === null) {
             // @ts-ignore
-            let val = this_data.reduce(fn, zero);
-            if (p !== 1) {
-                val = val ** (1 / p);
-            }
+            const val = this_data.reduce(fn, 0) ** (1 / p);
             return new Tensor(this.type, [val], []);
         }
 
@@ -1609,7 +1591,7 @@ export function rand(size) {
     const length = size.reduce((a, b) => a * b, 1);
     return new Tensor(
         'float32',
-        Float32Array.from({ length }, () => random.random()),
+        Float32Array.from({ length }, () => Math.random()),
         size,
     );
 }
@@ -1621,11 +1603,26 @@ export function rand(size) {
  */
 export function randn(size) {
     const length = size.reduce((a, b) => a * b, 1);
-    return new Tensor(
-        'float32',
-        Float32Array.from({ length }, () => random.gauss()),
-        size,
-    );
+    const data = new Float32Array(length);
+
+    for (let i = 0; i < length; i += 2) {
+        // Box-Muller transform
+        const u = 1 - Math.random(); // Avoids log(0)
+        const v = Math.random();
+
+        const mag = Math.sqrt(-2.0 * Math.log(u));
+        const angle = 2.0 * Math.PI * v;
+
+        // Assign the first value
+        data[i] = mag * Math.cos(angle);
+
+        // Assign the second value (if valid index)
+        if (i + 1 < length) {
+            data[i + 1] = mag * Math.sin(angle);
+        }
+    }
+
+    return new Tensor('float32', data, size);
 }
 
 /**

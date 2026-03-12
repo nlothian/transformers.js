@@ -1,7 +1,6 @@
 import { Pipeline } from './_base.js';
 
 import { softmax } from '../utils/maths.js';
-import { logger } from '../utils/logger.js';
 
 /**
  * @typedef {import('./_base.js').TextPipelineConstructorArgs} TextPipelineConstructorArgs
@@ -94,13 +93,13 @@ export class ZeroShotClassificationPipeline
 
         this.entailment_id = this.label2id['entailment'];
         if (this.entailment_id === undefined) {
-            logger.warn("Could not find 'entailment' in label2id mapping. Using 2 as entailment_id.");
+            console.warn("Could not find 'entailment' in label2id mapping. Using 2 as entailment_id.");
             this.entailment_id = 2;
         }
 
         this.contradiction_id = this.label2id['contradiction'] ?? this.label2id['not_entailment'];
         if (this.contradiction_id === undefined) {
-            logger.warn("Could not find 'contradiction' in label2id mapping. Using 0 as contradiction_id.");
+            console.warn("Could not find 'contradiction' in label2id mapping. Using 0 as contradiction_id.");
             this.contradiction_id = 0;
         }
     }

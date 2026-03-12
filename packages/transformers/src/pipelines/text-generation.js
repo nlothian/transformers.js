@@ -29,7 +29,7 @@ function isChat(x) {
  * @property {boolean} [return_full_text=true] If set to `false` only added text is returned, otherwise the full text is returned.
  * @property {Object} [tokenizer_encode_kwargs] Additional keyword arguments to pass along to the encoding step of the tokenizer.
  * If the text input is a chat, it is passed to `apply_chat_template`. Otherwise, it is passed to the tokenizer's call function.
- * @typedef {import('../generation/parameters.js').GenerationFunctionParameters & TextGenerationSpecificParams} TextGenerationConfig
+ * @typedef {import('../generation/configuration_utils.js').GenerationConfig & TextGenerationSpecificParams} TextGenerationConfig
  *
  * @callback TextGenerationPipelineCallbackString
  * @param {string} texts One prompt to complete.
@@ -100,10 +100,6 @@ function isChat(x) {
 export class TextGenerationPipeline
     extends /** @type {new (options: TextPipelineConstructorArgs) => TextGenerationPipelineType} */ (Pipeline)
 {
-    /**
-     * @param {string | string[] | import('../tokenization_utils.js').Message[] | import('../tokenization_utils.js').Message[][]} texts
-     * @param {Partial<TextGenerationConfig>} generate_kwargs
-     */
     async _call(texts, generate_kwargs = {}) {
         let isBatched = false;
         let isChatInput = false;

@@ -9,7 +9,8 @@ Here's how it works: the user clicks “Upload image” and selects an image usi
 Useful links:
 
 - [Demo site](https://huggingface.co/spaces/Scrimba/vanilla-js-object-detector)
-- [Source code](https://github.com/huggingface/transformers.js-examples/tree/main/vanilla-js)
+- [Interactive code walk-through (scrim)](https://scrimba.com/scrim/cKm9bDAg)
+- [Source code](https://github.com/huggingface/transformers.js/tree/main/examples/vanilla-js)
 
 ## Step 1: HTML and CSS setup
 
@@ -295,7 +296,7 @@ The bounding box and label span also need some styling, so add the following to 
 
 **And that’s it!**
 
-You've now built your own fully-functional AI application that detects objects in images, which runs completely in your browser: no external server, APIs, or build tools. Pretty cool! 🥳
+You've now built your own fully-functional AI application that detects objects in images, which runns completely in your browser: no external server, APIs, or build tools. Pretty cool! 🥳
 
 ![Demo](https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/js-detection-inference-elephant.png)
 

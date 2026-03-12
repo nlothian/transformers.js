@@ -39,10 +39,7 @@ function transformType(expr) {
       .replace(/\[\w+\]/g, "Array") // [T] single-element tuple -> Array
       .replace(/\[[^\[\]]*,[^\[\]]*\]/g, "Array") // tuples with commas -> Array
       .replace(/\w+\s+extends\s+[^?]+\?\s*[^:]+\s*:\s*[^,}>)]+/g, "any") // conditionals -> any
-      .replace(/\bnew\s+([A-Z]\w*)\b/g, "$1") // new Type -> Type
-      .replace(/,?\s*\[\s*\w+\s*:\s*\w+\s*\]\s*:\s*\w+/g, "") // [key: string]: any -> (removed)
-      .replace(/\(\s*(\w+)\s*&\s*\{\s*\}\s*\)/g, "$1") // (string & {}) -> string
-      .replace(/\s*&\s*\{\s*\}/g, ""); // string & {} -> string
+      .replace(/\bnew\s+([A-Z]\w*)\b/g, "$1"); // new Type -> Type
     if (!result.includes("=>")) result = result.replace(/\s*&\s*/g, "|"); // A & B -> A|B
   }
   return result;
