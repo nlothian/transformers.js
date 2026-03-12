@@ -19,6 +19,74 @@ env.backends.onnx.wasm.wasmPaths = '/path/to/files/';
 
 For a full list of available settings, check out the [API Reference](./api/env).
 
+### Grammar-constrained generation (`generate({ grammar: "..." })`)
+
+You can constrain decoding by passing a grammar string to `generate`:
+
+```javascript
+const outputs = await model.generate({
+  ...inputs,
+  max_new_tokens: 80,
+  grammar: `
+root ::= object
+object ::= "{" ws "\\\"name\\\"" ws ":" ws string ws "," ws "\\\"age\\\"" ws ":" ws number ws "}"
+string ::= "\\\"" [a-zA-Z ]+ "\\\""
+number ::= [0-9]+
+ws ::= [ \t\n\r]*
+`,
+});
+```
+
+This is useful for enforcing structured outputs (for example JSON or a small command language).
+
+#### Supported grammar features (GBNF subset)
+
+Transformers.js supports a practical GBNF subset for constrained decoding:
+
+- Rule definitions: `rule ::= ...`
+- Alternation: `a | b`
+- Grouping: `( ... )`
+- Repetition operators: `*`, `+`, `?`
+- Character classes / ranges: `[a-z]`, `[0-9]`
+- String literals: `"open"`, `"{"`, etc.
+- Optional whitespace helper rules (for example `ws ::= [ \t\n\r]*`)
+
+#### Token terminals and caveats
+
+In addition to text terminals, token-level terminals are available:
+
+- `<[1234]>`: match an explicit token id.
+- `<token>`: match a named token (if available in the tokenizer vocabulary).
+- Negation (`!`) can be used with terminals/classes to ban a match.
+
+Caveats:
+
+- Tokenization is model-specific, so token terminal behavior can vary across models.
+- Prefer text-level rules unless you need token-exact control.
+- Escaping can be subtle (for example `"\\\""` for a literal quote in JavaScript strings).
+
+#### Failure behavior when the grammar is impossible
+
+If no valid next token satisfies both the model distribution and grammar, generation fails fast and the `generate(...)` call rejects with an error.
+In production, catch this error and retry with a relaxed grammar, larger `max_new_tokens`, or a fallback unconstrained decode path.
+
+#### Performance implications
+
+Grammar constraints add per-token filtering work during decoding. In practice:
+
+- Throughput is lower than unconstrained generation.
+- Overhead increases with grammar complexity (deep nesting, many alternatives, heavy token-terminal usage).
+- For best performance, keep grammars small, deterministic, and avoid unnecessary ambiguity.
+
+Example of a tiny command grammar:
+
+```bnf
+root ::= command
+command ::= "open" ws target | "delete" ws target | "list"
+target ::= "file" | "folder"
+ws ::= " "
+```
+
 ### Convert your models to ONNX
 
 We recommend using [Optimum](https://github.com/huggingface/optimum-onnx) to convert your PyTorch models to ONNX in a single command. For the full list of supported architectures, check out the [Optimum documentation](https://huggingface.co/docs/optimum-onnx/onnx/overview).
