@@ -70,5 +70,32 @@ const pipe = await pipeline('sentiment-analysis', 'Xenova/distilbert-base-uncase
 });
 ```
 
+
+You can also constrain generation to a grammar when you need structured outputs:
+```javascript
+const outputs = await model.generate({
+  ...inputs,
+  max_new_tokens: 80,
+  grammar: `
+root ::= object
+object ::= "{" ws "\"name\"" ws ":" ws string ws "," ws "\"age\"" ws ":" ws number ws "}"
+string ::= "\"" [a-zA-Z ]+ "\""
+number ::= [0-9]+
+ws ::= [ \t\n\r]*
+`,
+});
+```
+
+A small domain-specific grammar looks similar:
+```bnf
+root ::= command
+command ::= "open" ws target | "delete" ws target | "list"
+target ::= "file" | "folder"
+ws ::= " "
+```
+
+> [!NOTE]
+> Grammar-constrained decoding typically has lower throughput than unconstrained generation, since each step must filter tokens against the grammar. Keep grammars simple and deterministic for best performance, and handle impossible grammars by catching generation errors and retrying with relaxed constraints.
+
 Ready to dive in? Explore our wide variety of demo applications and templates [here](https://github.com/huggingface/transformers.js-examples). You can also launch your own project instantly using the official Transformers.js [template](https://huggingface.co/new-space?template=static-templates%2Ftransformers.js) on Hugging Face!
 
