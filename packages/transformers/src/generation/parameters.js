@@ -30,6 +30,14 @@
  * through `streamer.put(token_ids)` and the streamer is responsible for any further processing.
  * @property {number[]} [decoder_input_ids=null] (`number[]`, *optional*):
  * If the model is an encoder-decoder model, this argument is used to pass the `decoder_input_ids`.
+ * @property {string} [grammar=null] (`string`, *optional*):
+ * Raw GBNF grammar text used for grammar-constrained decoding.
+ * @property {string} [grammar_rule="root"] (`string`, *optional*):
+ * The grammar rule to use as the start rule when applying `grammar`.
+ * @property {boolean} [grammar_strict=false] (`boolean`, *optional*):
+ * Whether grammar-constrained decoding should be enforced strictly.
+ * @property {boolean} [grammar_debug=false] (`boolean`, *optional*):
+ * Whether to enable additional grammar-constrained decoding diagnostics.
  */
 
 /**
