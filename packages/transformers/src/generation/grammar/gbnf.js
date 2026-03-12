@@ -753,7 +753,6 @@ export class GBNFStateMachine {
                 }
             }
         }
-        }
 
         return this._epsilonClosure(nextStates);
     }
