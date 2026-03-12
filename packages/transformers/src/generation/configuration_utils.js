@@ -290,6 +290,34 @@ export class GenerationConfig {
      */
     guidance_scale = null;
 
+    /**
+     * Raw GBNF grammar text used for grammar-constrained decoding.
+     * @type {string}
+     * @default null
+     */
+    grammar = null;
+
+    /**
+     * The grammar rule to use as the start rule when applying `grammar`.
+     * @type {string}
+     * @default "root"
+     */
+    grammar_rule = 'root';
+
+    /**
+     * Whether grammar-constrained decoding should be enforced strictly.
+     * @type {boolean}
+     * @default false
+     */
+    grammar_strict = false;
+
+    /**
+     * Whether to enable additional grammar-constrained decoding diagnostics.
+     * @type {boolean}
+     * @default false
+     */
+    grammar_debug = false;
+
     // Parameters that define the output variables of `generate`
     /**
      * The number of independently computed returned sequences for each element in the batch.
